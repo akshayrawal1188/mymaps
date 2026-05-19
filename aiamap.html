@@ -1,569 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AIA – Company Master Map</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
-  <script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
-
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0b0f1a;
-      --panel: #111827;
-      --border: #1e2d45;
-      --accent: #00c2ff;
-      --accent2: #f59e0b;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --danger: #ef4444;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'IBM Plex Mono', monospace;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* ── HEADER ── */
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 32px;
-      height: 64px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .logo-badge {
-      width: 36px;
-      height: 36px;
-      background: var(--accent);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 16px;
-      color: #000;
-    }
-
-    .logo-text {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: var(--text);
-    }
-
-    .logo-sub {
-      font-size: 10px;
-      color: var(--muted);
-      letter-spacing: 1px;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .status-dot {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .btn-open {
-      padding: 8px 18px;
-      background: transparent;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      border-radius: 4px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 11px;
-      cursor: pointer;
-      letter-spacing: 1px;
-      transition: all 0.2s;
-      text-decoration: none;
-    }
-
-    .btn-open:hover {
-      background: var(--accent);
-      color: #000;
-    }
-
-    /* ── STATS BAR ── */
-    .stats-bar {
-      display: flex;
-      gap: 0;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-    }
-
-    .stat {
-      flex: 1;
-      min-width: 120px;
-      padding: 14px 24px;
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .stat:last-child { border-right: none; }
-
-    .stat-label {
-      font-size: 9px;
-      color: var(--muted);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    .stat-value {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .stat-value.amber { color: var(--accent2); }
-    .stat-value.green { color: #22c55e; }
-    .stat-value.red { color: var(--danger); }
-
-    /* ── MAIN LAYOUT ── */
-    .main {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      height: calc(100vh - 64px - 53px);
-    }
-
-    /* ── SIDEBAR ── */
-    .sidebar {
-      background: var(--panel);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .sidebar-section {
-      padding: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sidebar-title {
-      font-size: 9px;
-      color: var(--muted);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-
-    .zone-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .zone-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.15s;
-      border: 1px solid transparent;
-    }
-
-    .zone-item:hover {
-      background: rgba(0,194,255,0.07);
-      border-color: var(--border);
-    }
-
-    .zone-color {
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
-      flex-shrink: 0;
-    }
-
-    .zone-name {
-      font-size: 12px;
-      color: var(--text);
-      flex: 1;
-    }
-
-    .zone-count {
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    .search-box {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 8px 12px;
-      color: var(--text);
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 12px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .search-box:focus { border-color: var(--accent); }
-    .search-box::placeholder { color: var(--muted); }
-
-    /* ── MAP AREA ── */
-    .map-wrapper {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .map-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 20px;
-      background: rgba(11,15,26,0.95);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(8px);
-    }
-
-    .map-toolbar-left {
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 1px;
-    }
-
-    .map-toolbar-left span {
-      color: var(--accent);
-    }
-
-    .toolbar-btns {
-      display: flex;
-      gap: 8px;
-    }
-
-    .tb-btn {
-      padding: 5px 14px;
-      font-size: 10px;
-      font-family: 'IBM Plex Mono', monospace;
-      letter-spacing: 1px;
-      border-radius: 3px;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      transition: all 0.2s;
-    }
-
-    .tb-btn:hover, .tb-btn.active {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    #map {
-      flex: 1;
-      width: 100%;
-    }
-
-    /* ── LOADING OVERLAY ── */
-    .loading-overlay {
-      position: absolute;
-      inset: 0;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-      gap: 16px;
-      transition: opacity 0.5s;
-    }
-
-    .loading-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-text {
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 2px;
-    }
-
-    /* ── ERROR BANNER ── */
-    .error-banner {
-      display: none;
-      padding: 12px 20px;
-      background: rgba(239,68,68,0.1);
-      border-bottom: 1px solid rgba(239,68,68,0.3);
-      font-size: 12px;
-      color: #fca5a5;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .error-banner.show { display: flex; }
-
-    /* ── LEAFLET OVERRIDES ── */
-    .leaflet-container {
-      background: #0d1117 !important;
-      font-family: 'IBM Plex Mono', monospace;
-    }
-
-    .leaflet-control-attribution {
-      background: rgba(11,15,26,0.8) !important;
-      color: var(--muted) !important;
-      font-size: 9px !important;
-    }
-
-    .leaflet-control-attribution a { color: var(--accent) !important; }
-
-    .leaflet-control-zoom a {
-      background: var(--panel) !important;
-      color: var(--text) !important;
-      border-color: var(--border) !important;
-    }
-
-    .leaflet-control-zoom a:hover {
-      background: var(--border) !important;
-    }
-
-    /* ── CORNER COORDS ── */
-    .coords-display {
-      position: absolute;
-      bottom: 30px;
-      left: 10px;
-      z-index: 500;
-      background: rgba(11,15,26,0.85);
-      border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 10px;
-      color: var(--muted);
-      pointer-events: none;
-      backdrop-filter: blur(4px);
-    }
-
-    @media (max-width: 768px) {
-      .main { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-      .stats-bar .stat { min-width: 100px; padding: 10px 14px; }
-    }
-      /* ── KML LABELS ── */
-    .kml-label {
-      background: rgba(11,15,26,0.85) !important;
-      border: 1px solid #00c2ff !important;
-      border-radius: 3px !important;
-      color: #e2e8f0 !important;
-      font-family: "IBM Plex Mono", monospace !important;
-      font-size: 10px !important;
-      font-weight: 600 !important;
-      padding: 2px 6px !important;
-      white-space: nowrap !important;
-      box-shadow: none !important;
-    }
-    .kml-label::before { display: none !important; }
-  </style>
-</head>
-<body>
-
-<!-- HEADER -->
-<header>
-  <div class="logo">
-    <div class="logo-badge">AIA</div>
-    <div>
-      <div class="logo-text">COMPANY MASTER MAP</div>
-      <div class="logo-sub">INDUSTRIAL ZONE INTELLIGENCE PORTAL</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="status-dot">
-      <div class="dot"></div>
-      LIVE
-    </div>
-    <a class="btn-open"
-       href="https://earth.google.com/earth/d/1imWL2MopOKqbxlsS9MPD2A6Ng1C2pOq6?usp=sharing"
-       target="_blank">
-      ↗ OPEN IN EARTH
-    </a>
-  </div>
-</header>
-
-<!-- STATS BAR -->
-<div class="stats-bar">
-  <div class="stat">
-    <div class="stat-label">Total Zones</div>
-    <div class="stat-value" id="stat-zones">—</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Total Markers</div>
-    <div class="stat-value amber" id="stat-markers">—</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Polygons</div>
-    <div class="stat-value green" id="stat-polygons">—</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Map Center</div>
-    <div class="stat-value" style="font-size:13px; color: var(--muted)" id="stat-center">Loading...</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Data Source</div>
-    <div class="stat-value green" style="font-size:13px;">KML / LIVE</div>
-  </div>
-</div>
-
-<!-- MAIN -->
-<div class="main">
-
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="sidebar-section">
-      <div class="sidebar-title">Search</div>
-      <input class="search-box" type="text" placeholder="Search locations..." id="search-input"/>
-    </div>
-    <div class="sidebar-section" style="flex:1; overflow-y:auto;">
-      <div class="sidebar-title">Layers & Zones</div>
-      <div class="zone-list" id="zone-list">
-        <div style="font-size:11px; color:var(--muted);">Loading layers...</div>
-      </div>
-    </div>
-    <div class="sidebar-section">
-      <div class="sidebar-title">Map Style</div>
-      <div class="zone-list">
-        <div class="zone-item" onclick="setTile('dark')" id="tile-dark">
-          <div class="zone-color" style="background:#1a1a2e;border:1px solid #444"></div>
-          <div class="zone-name">Dark (Default)</div>
-        </div>
-        <div class="zone-item" onclick="setTile('satellite')">
-          <div class="zone-color" style="background:#2d4a1e;border:1px solid #444"></div>
-          <div class="zone-name">Satellite</div>
-        </div>
-        <div class="zone-item" onclick="setTile('streets')">
-          <div class="zone-color" style="background:#d4c5a9;border:1px solid #444"></div>
-          <div class="zone-name">Streets</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MAP -->
-  <div class="map-wrapper">
-    <div class="map-toolbar">
-      <div class="map-toolbar-left">
-        VIEWING: <span>AIA INDUSTRIAL ZONE MAP</span>
-      </div>
-      <div class="toolbar-btns">
-        <button class="tb-btn" onclick="map.setView([21.618, 73.025], 13)">RESET VIEW</button>
-        <button class="tb-btn" onclick="fitBounds()">FIT ALL</button>
-      </div>
-    </div>
-
-    <div class="error-banner" id="error-banner">
-      ⚠ Could not load KML directly due to CORS. Showing map frame — 
-      <a href="https://earth.google.com/earth/d/1imWL2MopOKqbxlsS9MPD2A6Ng1C2pOq6?usp=sharing"
-         target="_blank" style="color:var(--accent); margin-left:6px;">Open in Google Earth ↗</a>
-    </div>
-
-    <div class="loading-overlay" id="loading">
-      <div class="spinner"></div>
-      <div class="loading-text">LOADING MAP DATA...</div>
-    </div>
-
-    <div id="map"></div>
-    <div class="coords-display" id="coords">LAT: — LNG: —</div>
-  </div>
-</div>
-
 <script>
-  // ── KML COLOR CONVERTER (KML = AABBGGRR → CSS #RRGGBB) ──
+  // ── KML COLOR CONVERTER ──
   function kmlColorToHex(kmlColor) {
     if (!kmlColor || kmlColor.length < 8) return null;
+
     const r = kmlColor.slice(6, 8);
     const g = kmlColor.slice(4, 6);
     const b = kmlColor.slice(2, 4);
     const a = parseInt(kmlColor.slice(0, 2), 16) / 255;
-    return { hex: `#${r}${g}${b}`, alpha: a };
+
+    return {
+      hex: `#${r}${g}${b}`,
+      alpha: a
+    };
   }
 
-  // ── PARSE STYLES FROM KML XML ──
+  // ── PARSE STYLES FROM KML ──
   function parseKmlStyles(xmlDoc) {
     const styles = {};
-    // Parse all Style elements
+    const styleMaps = {};
+
     xmlDoc.querySelectorAll('Style').forEach(styleEl => {
-      const id = styleEl.getAttribute('id') || styleEl.closest('[id]')?.getAttribute('kml\:id') || styleEl.closest('[kml\:id]')?.getAttribute('kml:id');
+      const id = styleEl.getAttribute('id');
       if (!id) return;
+
       const lineColorEl = styleEl.querySelector('LineStyle > color');
       const polyColorEl = styleEl.querySelector('PolyStyle > color');
-      const iconHrefEl  = styleEl.querySelector('IconStyle Icon href');
-      const iconColorMatch = iconHrefEl?.textContent?.match(/color=([0-9a-f]{6})/i);
+
       styles[id] = {
-        lineColor: lineColorEl ? kmlColorToHex(lineColorEl.textContent.trim()) : null,
-        polyColor: polyColorEl ? kmlColorToHex(polyColorEl.textContent.trim()) : null,
-        iconColor: iconColorMatch ? `#${iconColorMatch[1].slice(4,6)}${iconColorMatch[1].slice(2,4)}${iconColorMatch[1].slice(0,2)}` : '#1976d2'
+        lineColor: lineColorEl
+          ? kmlColorToHex(lineColorEl.textContent.trim())
+          : null,
+
+        polyColor: polyColorEl
+          ? kmlColorToHex(polyColorEl.textContent.trim())
+          : null
       };
     });
 
-    // Resolve StyleMap normal keys
-    const styleMaps = {};
     xmlDoc.querySelectorAll('StyleMap').forEach(sm => {
       const id = sm.getAttribute('id');
-      const normalPair = Array.from(sm.querySelectorAll('Pair')).find(p => p.querySelector('key')?.textContent === 'normal');
-      const url = normalPair?.querySelector('styleUrl')?.textContent?.replace('#','');
-      if (id && url) styleMaps[id] = url;
+
+      const normalPair = Array.from(sm.querySelectorAll('Pair'))
+        .find(p => p.querySelector('key')?.textContent === 'normal');
+
+      const url = normalPair
+        ?.querySelector('styleUrl')
+        ?.textContent
+        ?.replace('#', '');
+
+      if (id && url) {
+        styleMaps[id] = url;
+      }
     });
 
     return { styles, styleMaps };
@@ -573,23 +60,38 @@
   const map = L.map('map', {
     center: [21.618, 73.025],
     zoom: 13,
-    zoomControl: true,
-    preferCanvas: true,   // ← KEY for performance with many markers
+    preferCanvas: true
   });
 
-  // Tile layers
+  // ── TILE LAYERS ──
   const tiles = {
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO', maxZoom: 19
-    }),
-    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '© Esri', maxZoom: 19
-    }),
-    streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
-    })
+    dark: L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution: '© OpenStreetMap © CARTO',
+        maxZoom: 19
+      }
+    ),
+
+    satellite: L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: '© Esri',
+        maxZoom: 19
+      }
+    ),
+
+    streets: L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19
+      }
+    )
   };
+
   tiles.dark.addTo(map);
+
   let currentTile = 'dark';
 
   function setTile(name) {
@@ -598,179 +100,221 @@
     currentTile = name;
   }
 
-  // Coords display
-  map.on('mousemove', (e) => {
+  // ── COORDS ──
+  map.on('mousemove', e => {
     document.getElementById('coords').textContent =
       `LAT: ${e.latlng.lat.toFixed(5)}   LNG: ${e.latlng.lng.toFixed(5)}`;
   });
 
-  // ── LOAD & PARSE KML MANUALLY FOR COLORS ──
-  const kmlRawUrl = 'https://akshayrawal1188.github.io/mymaps/AIAMAP';
-  const kmlUrl = kmlRawUrl; // GitHub Pages serves with CORS headers
+  // ── LIVE KML URL ──
+  const kmlUrl =
+    'https://akshayrawal1188.github.io/mymaps/AIAMAP.kml';
 
   let kmlLayer = null;
   let markerCount = 0;
   let polygonCount = 0;
   let zoneNames = new Set();
 
-  // Labels only shown at certain zoom to reduce clutter
-  const labelMinZoom = 14;
-  let labelsVisible = false;
+  // ── LOAD KML ──
+  fetch(kmlUrl)
+    .then(response => response.text())
 
-  function updateLabelVisibility() {
-    const z = map.getZoom();
-    const shouldShow = z >= labelMinZoom;
-    if (shouldShow !== labelsVisible) {
-      labelsVisible = shouldShow;
-      map.eachLayer(layer => {
-        if (layer.getTooltip) {
-          const tt = layer.getTooltip();
-          if (tt) shouldShow ? layer.openTooltip() : layer.closeTooltip();
-        }
-      });
-    }
-  }
-  map.on('zoomend', updateLabelVisibility);
-
-  fetch(kmlRawUrl)
     .then(kmlText => {
+
       const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(kmlText, 'text/xml');
+      const xmlDoc = parser.parseFromString(
+        kmlText,
+        'text/xml'
+      );
+
       const { styles, styleMaps } = parseKmlStyles(xmlDoc);
 
-      // Build a lookup: styleUrl → resolved style
       function resolveStyle(styleUrl) {
-        const id = styleUrl?.replace('#','');
+        const id = styleUrl?.replace('#', '');
+
         if (!id) return {};
-        // Direct Style
+
         if (styles[id]) return styles[id];
-        // StyleMap → normal pair → Style
-        if (styleMaps[id] && styles[styleMaps[id]]) return styles[styleMaps[id]];
+
+        if (styleMaps[id] && styles[styleMaps[id]]) {
+          return styles[styleMaps[id]];
+        }
+
         return {};
       }
 
-      // Parse KML manually using toGeoJSON then add to map
-      const parser = new DOMParser();
-      const kmlDom = parser.parseFromString(kmlText, 'text/xml');
-      const geojson = toGeoJSON.kml(kmlDom);
-      kmlLayer = L.geoJson(geojson, {
-        style: function(feature) {
-          const props = feature.properties || {};
-          const styleId = (props.styleUrl || props.styleMapUrl || '').replace('#','');
-          const s = resolveStyle('#' + styleId);
+      const geojson = toGeoJSON.kml(xmlDoc);
 
-          const lineC = s.lineColor;
-          const polyC = s.polyColor;
+      kmlLayer = L.geoJson(geojson, {
+
+        style: function(feature) {
+
+          const props = feature.properties || {};
+
+          const styleId =
+            (props.styleUrl || '').replace('#', '');
+
+          const s = resolveStyle(styleId);
 
           return {
-            color:       lineC ? lineC.hex : '#00c2ff',
-            weight:      2,
-            opacity:     lineC ? Math.max(lineC.alpha, 0.8) : 0.9,
-            fillColor:   polyC ? polyC.hex : (lineC ? lineC.hex : '#00c2ff'),
-            fillOpacity: polyC ? Math.min(polyC.alpha + 0.1, 0.6) : 0.25,
+            color: s.lineColor?.hex || '#00c2ff',
+            weight: 2,
+            opacity: s.lineColor?.alpha || 1,
+
+            fillColor:
+              s.polyColor?.hex ||
+              s.lineColor?.hex ||
+              '#00c2ff',
+
+            fillOpacity:
+              s.polyColor?.alpha || 0.25
           };
         },
-        pointToLayer: function(feature, latlng) {
-          const props = feature.properties || {};
-          const styleId = (props.styleUrl || props.styleMapUrl || '').replace('#','');
-          const s = resolveStyle('#' + styleId);
-          const color = s.iconColor || '#1976d2';
 
-          // Use canvas circle marker for performance
+        pointToLayer: function(feature, latlng) {
+
           return L.circleMarker(latlng, {
             radius: 5,
-            fillColor: color,
+            fillColor: '#00c2ff',
             color: '#ffffff',
             weight: 1,
-            fillOpacity: 1,
+            fillOpacity: 1
           });
         },
+
         onEachFeature: function(feature, layer) {
-          const name = feature.properties?.name || feature.properties?.Name || '';
-          const desc = feature.properties?.description || '';
-          const geomType = feature.geometry?.type || '';
+
+          const name =
+            feature.properties?.name || '';
+
+          const desc =
+            feature.properties?.description || '';
+
+          const geomType =
+            feature.geometry?.type || '';
 
           if (name) zoneNames.add(name);
-          if (geomType === 'Point') markerCount++;
-          else if (geomType.includes('Polygon')) polygonCount++;
+
+          if (geomType === 'Point') {
+            markerCount++;
+          }
+
+          if (geomType.includes('Polygon')) {
+            polygonCount++;
+          }
 
           if (name) {
+
             layer.bindTooltip(name, {
-              permanent: false,   // start hidden, show on hover for perf
-              direction: geomType === 'Point' ? 'right' : 'center',
-              className: 'kml-label',
-              offset: geomType === 'Point' ? [8, 0] : [0, 0]
+              direction: 'top',
+              className: 'kml-label'
             });
 
             layer.bindPopup(`
-              <div style="font-family:'IBM Plex Mono',monospace;min-width:180px;">
-                <div style="font-weight:700;font-size:13px;color:#00c2ff;margin-bottom:6px;">${name}</div>
-                ${desc ? `<div style="font-size:11px;color:#888;">${desc}</div>` : ''}
-                <div style="font-size:10px;color:#555;margin-top:6px;">${geomType}</div>
+              <div style="font-family:monospace;">
+                <strong>${name}</strong><br><br>
+                ${desc || ''}
               </div>
             `);
           }
         }
       });
 
-      // Manually trigger ready logic
-      (function() {
-        document.getElementById('loading').classList.add('hidden');
+      kmlLayer.addTo(map);
 
-        document.getElementById('stat-zones').textContent = zoneNames.size || '—';
-        document.getElementById('stat-markers').textContent = markerCount || '—';
-        document.getElementById('stat-polygons').textContent = polygonCount || '—';
+      // ── STATS ──
+      document
+        .getElementById('loading')
+        .classList.add('hidden');
 
-        const center = map.getCenter();
-        document.getElementById('stat-center').textContent =
-          `${center.lat.toFixed(3)}, ${center.lng.toFixed(3)}`;
+      document
+        .getElementById('stat-zones')
+        .textContent = zoneNames.size;
 
-        try {
-          const bounds = kmlLayer.getBounds();
-          if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
-        } catch(e) {}
+      document
+        .getElementById('stat-markers')
+        .textContent = markerCount;
 
-        // Build zone list
-        const list = document.getElementById('zone-list');
-        if (zoneNames.size > 0) {
-          list.innerHTML = '';
-          const colors = ['#00c2ff','#f59e0b','#22c55e','#ef4444','#a855f7','#ec4899','#06b6d4','#84cc16'];
-          let i = 0;
-          zoneNames.forEach(name => {
-            const color = colors[i % colors.length];
-            list.innerHTML += `<div class="zone-item">
-              <div class="zone-color" style="background:${color}"></div>
-              <div class="zone-name">${name}</div>
-            </div>`;
-            i++;
-          });
-        }
-      }).addTo(map);
+      document
+        .getElementById('stat-polygons')
+        .textContent = polygonCount;
 
-      })(); // end IIFE
+      // ── FIT BOUNDS ──
+      const bounds = kmlLayer.getBounds();
+
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+          padding: [20, 20]
+        });
+      }
+
+      // ── SIDEBAR ──
+      const list =
+        document.getElementById('zone-list');
+
+      list.innerHTML = '';
+
+      zoneNames.forEach(name => {
+
+        list.innerHTML += `
+          <div class="zone-item">
+            <div class="zone-color"
+              style="background:#00c2ff">
+            </div>
+
+            <div class="zone-name">
+              ${name}
+            </div>
+          </div>
+        `;
+      });
     })
-    .catch((err) => {
-      console.error('KML load failed:', err);
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('error-banner').classList.add('show');
+
+    .catch(err => {
+
+      console.error(err);
+
+      document
+        .getElementById('loading')
+        .classList.add('hidden');
+
+      document
+        .getElementById('error-banner')
+        .classList.add('show');
     });
 
+  // ── FIT BUTTON ──
   function fitBounds() {
-    try {
+
+    if (kmlLayer) {
+
       const bounds = kmlLayer.getBounds();
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
-    } catch(e) {
-      map.setView([21.618, 73.025], 13);
+
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+          padding: [20, 20]
+        });
+      }
     }
   }
 
-  // Search
-  document.getElementById('search-input').addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    document.querySelectorAll('#zone-list .zone-item').forEach(el => {
-      el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+  // ── SEARCH ──
+  document
+    .getElementById('search-input')
+    .addEventListener('input', function() {
+
+      const q = this.value.toLowerCase();
+
+      document
+        .querySelectorAll('#zone-list .zone-item')
+        .forEach(el => {
+
+          el.style.display =
+            el.textContent
+              .toLowerCase()
+              .includes(q)
+              ? ''
+              : 'none';
+        });
     });
-  });
 </script>
-</body>
-</html>
